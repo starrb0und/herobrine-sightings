@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
@@ -22,8 +23,9 @@ public class HerobrineMod implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STOPPING.register(server -> sightings.clear());
 		ServerTickEvents.END_SERVER_TICK.register(sightings::tick);
 
-		// /herobrine spawn- force a sighting for yourself (for testing)
-		// /herobrine reload - re-read config/herobrine.json
+		// /herobrine spawn          - force a sighting for yourself (for testing)
+		// /herobrine haunt <player> - force a sighting for another player
+		// /herobrine reload         - re-read config/herobrine.json
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(
 				Commands.literal("herobrine")
 						.requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
@@ -36,6 +38,15 @@ public class HerobrineMod implements ModInitializer {
 							context.getSource().sendFailure(Component.literal("No suitable spot found near you. Try again somewhere more open."));
 							return 0;
 						}))
+						.then(Commands.literal("haunt").then(Commands.argument("player", EntityArgument.player()).executes(context -> {
+							ServerPlayer target = EntityArgument.getPlayer(context, "player");
+							if (sightings.trySpawn(target)) {
+								context.getSource().sendSuccess(() -> Component.literal("Herobrine is watching ").append(target.getDisplayName()).append("."), true);
+								return 1;
+							}
+							context.getSource().sendFailure(Component.literal("No suitable spot found near ").append(target.getDisplayName()).append("."));
+							return 0;
+						})))
 						.then(Commands.literal("reload").executes(context -> {
 							sightings.reload(context.getSource().getServer());
 							context.getSource().sendSuccess(() -> Component.literal("Herobrine config reloaded."), false);

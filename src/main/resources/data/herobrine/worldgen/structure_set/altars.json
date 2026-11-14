@@ -1,0 +1,16 @@
+{
+  "placement": {
+    "type": "minecraft:random_spread",
+    "frequency": 0.2,
+    "salt": 1483920157,
+    "separation": 5,
+    "spacing": 32,
+    "spread_type": "triangular"
+  },
+  "structures": [
+    {
+      "structure": "herobrine:altar",
+      "weight": 1
+    }
+  ]
+}

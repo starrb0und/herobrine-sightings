@@ -16,6 +16,7 @@ import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.decoration.Mannequin;
 import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -34,16 +35,21 @@ import java.util.concurrent.CompletableFuture;
  * only to the player being haunted, so nobody else sees him and nothing can interact with him.
  */
 public class SightingManager {
-	private static final int PLACEMENT_ATTEMPTS = 12;
+	private static final int PLACEMENT_ATTEMPTS = 24;
+	/** How long a sighting that could not be placed keeps being retried. */
+	private static final int PENDING_TICKS = 20 * 60 * 5;
 	private static final int VERTICAL_SEARCH = 8;
 	private static final double EYE_HEIGHT = 1.62;
 
 	private final RandomSource random = RandomSource.create();
 	private final Map<UUID, Sighting> active = new HashMap<>();
 	private final Map<UUID, Integer> cooldownUntilTick = new HashMap<>();
+	private final Map<UUID, Integer> pendingUntilTick = new HashMap<>();
 
 	private HerobrineConfig config = new HerobrineConfig();
 	private volatile ResolvableProfile profile = Mannequin.DEFAULT_PROFILE;
+	/** True while a skin lookup is running or once it has succeeded. */
+	private volatile boolean skinLookupPending;
 
 	private record Sighting(ServerLevel level, int entityId, Vec3 position, int endTick) {
 	}
@@ -56,11 +62,14 @@ public class SightingManager {
 	/** Looks up the skin off-thread; until it finishes the client resolves the name itself. */
 	private void resolveSkin(MinecraftServer server, String name) {
 		profile = ResolvableProfile.createUnresolved(name);
+		skinLookupPending = true;
 		CompletableFuture
 				.supplyAsync(() -> server.services().profileResolver().fetchByName(name))
 				.whenComplete((found, error) -> {
 					if (error != null || found.isEmpty()) {
-						HerobrineMod.LOGGER.warn("Could not look up the skin of '{}'; Herobrine may show a default skin", name);
+						// Mojang's lookup is rate limited; the next sighting tries again.
+						HerobrineMod.LOGGER.warn("Could not look up the skin of '{}'; will retry at the next sighting", name);
+						skinLookupPending = false;
 					} else {
 						profile = ResolvableProfile.createResolved(found.get());
 						HerobrineMod.LOGGER.info("Loaded Herobrine's skin from '{}'", found.get().name());
@@ -75,17 +84,58 @@ public class SightingManager {
 		if (now % config.checkIntervalTicks != 0) {
 			return;
 		}
+		pendingUntilTick.values().removeIf(expiry -> expiry <= now);
 		for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-			if (active.containsKey(player.getUUID()) || player.isSpectator()) {
+			UUID id = player.getUUID();
+			if (active.containsKey(id) || player.isSpectator()) {
 				continue;
 			}
-			if (cooldownUntilTick.getOrDefault(player.getUUID(), 0) > now) {
+			if (cooldownUntilTick.getOrDefault(id, 0) > now) {
 				continue;
 			}
-			if (random.nextDouble() < config.chance) {
-				trySpawn(player);
+			// A sighting that found no spot is owed for a while, so a won roll is rarely wasted.
+			if (pendingUntilTick.containsKey(id) || random.nextDouble() < chance(player)) {
+				if (trySpawn(player)) {
+					pendingUntilTick.remove(id);
+				} else {
+					pendingUntilTick.putIfAbsent(id, now + PENDING_TICKS);
+				}
 			}
 		}
+	}
+
+	/** Probability of a sighting for this player on a single roll. */
+	private double chance(ServerPlayer player) {
+		ServerLevel level = player.level();
+		double chance = config.sightingsPerMinecraftWeek * config.checkIntervalTicks / HerobrineConfig.TICKS_PER_WEEK;
+		if (level.isThundering()) {
+			chance *= config.thunderstormMultiplier;
+		}
+		if (isInDarkCave(player, level)) {
+			chance *= config.darkCaveMultiplier;
+		}
+		if (hasCompany(player, level)) {
+			chance *= config.groupMultiplier;
+		}
+		return chance;
+	}
+
+	/** Underground (no sky light reaches the player, in a dimension that has a sky) and dark. */
+	private boolean isInDarkCave(ServerPlayer player, ServerLevel level) {
+		BlockPos head = BlockPos.containing(player.getEyePosition());
+		return level.dimensionType().hasSkyLight()
+				&& level.getBrightness(LightLayer.SKY, head) == 0
+				&& level.getMaxLocalRawBrightness(head) <= config.darkCaveMaxLight;
+	}
+
+	private boolean hasCompany(ServerPlayer player, ServerLevel level) {
+		double radiusSqr = config.groupRadius * config.groupRadius;
+		for (ServerPlayer other : level.players()) {
+			if (other != player && !other.isSpectator() && other.distanceToSqr(player) <= radiusSqr) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private void tickActive(MinecraftServer server, int now) {
@@ -123,6 +173,9 @@ public class SightingManager {
 		}
 
 		ServerLevel level = player.level();
+		if (!skinLookupPending) {
+			resolveSkin(level.getServer(), config.skinPlayer);
+		}
 		Vec3 position = findSpot(player, level);
 		if (position == null) {
 			return false;
@@ -206,5 +259,6 @@ public class SightingManager {
 	public void clear() {
 		active.clear();
 		cooldownUntilTick.clear();
+		pendingUntilTick.clear();
 	}
 }
