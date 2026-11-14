@@ -1,0 +1,29 @@
+{
+	"schemaVersion": 1,
+	"id": "herobrine",
+	"version": "${version}",
+	"name": "Herobrine Sightings",
+	"description": "On rare occasions, Herobrine appears at the edge of a player's vision and vanishes when they look at him.",
+	"authors": [
+		"starrb0und"
+	],
+	"contact": {
+		"sources": "https://github.com/starrb0und/herobrine-plugin"
+	},
+	"license": "All-Rights-Reserved",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"io.github.starrb0und.herobrine.HerobrineMod"
+		]
+	},
+	"mixins": [
+		"herobrine.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

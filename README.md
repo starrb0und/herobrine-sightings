@@ -1,32 +1,49 @@
 # Herobrine Sightings
 
-A Minecraft server plugin that, on rare occasions, spawns a Herobrine figure at the edge of a player's vision. He stays for a few seconds, or vanishes the moment the player turns to look at him.
+A server-side Fabric mod for Minecraft 26.2. On rare occasions, Herobrine appears at the edge of a player's vision. He stays for a few seconds, or vanishes the moment the player turns to look at him.
 
-> **Status:** concept stage. No target Minecraft version or server platform has been chosen yet.
+Players do not need to install anything: it works with vanilla clients.
 
-## Planned behaviour
+> **Status:** early development. It builds, but has not been tested in game yet.
 
-- **Rare trigger** – each online player has a small, configurable chance per interval of a sighting.
-- **Peripheral placement** – Herobrine appears off to the side of the player's view direction, at a distance, on a spot with line of sight to the player.
-- **Vanishes when noticed** – he despawns as soon as the player's view direction turns towards him, or after a short timeout, whichever comes first.
-- **Per-player** – ideally only the targeted player sees him.
+## How it works
 
-## Open decisions
+- Every `checkIntervalTicks`, each online player has a `chance` of a sighting.
+- Herobrine is placed off to the side of the player's view, on solid ground, where the player has line of sight to him.
+- He is a mannequin entity that is never added to the world. Its packets are sent only to the haunted player, so nobody else sees him and nothing can interact with him.
+- He vanishes when the player looks towards him, gets too close, changes dimension, or when the timeout runs out.
 
-- Target Minecraft version(s)
-- Server platform (Paper, Spigot, Folia, ...)
-- How the model is rendered (fake player with a Herobrine skin via packets, display entities, a resource-pack model, ...)
-- Build tool (Gradle or Maven)
+## Commands
 
-## Configuration ideas
+Both need operator (gamemaster) permission.
 
-| Option | Purpose |
+| Command | Purpose |
 | --- | --- |
-| `chance` | Probability of a sighting per check |
-| `check-interval` | How often each player is rolled for a sighting |
-| `min-distance` / `max-distance` | How far away he appears |
-| `peripheral-angle` | Angle range off the player's view direction where he may spawn |
-| `look-threshold` | How directly the player must look before he vanishes |
-| `max-duration` | Timeout before he vanishes on his own |
-| `cooldown` | Minimum time between sightings for one player |
-| `enabled-worlds` | Worlds where sightings can happen |
+| `/herobrine spawn` | Force a sighting for yourself, for testing |
+| `/herobrine reload` | Re-read the config file |
+
+## Configuration
+
+`config/herobrine.json` is created on first start.
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `checkIntervalTicks` | `200` | How often each player is rolled for a sighting (20 ticks = 1 second) |
+| `chance` | `0.004` | Probability of a sighting on each roll |
+| `cooldownSeconds` | `600` | Minimum time between sightings for one player |
+| `minDistance` / `maxDistance` | `16` / `40` | How far away he appears, in blocks |
+| `minAngle` / `maxAngle` | `30` / `50` | How far off the centre of the player's view he appears, in degrees |
+| `lookThresholdDegrees` | `15` | He vanishes once the player's view is within this angle of him |
+| `maxDurationTicks` | `100` | Timeout before he vanishes on his own |
+| `vanishDistance` | `8` | He vanishes if the player gets closer than this |
+| `skinPlayer` | `MHF_Herobrine` | Player account whose skin he wears |
+
+## Building
+
+Requires JDK 25.
+
+```
+./gradlew build
+```
+
+The mod jar is written to `build/libs/`. It needs [Fabric API](https://modrinth.com/mod/fabric-api) on the server.
