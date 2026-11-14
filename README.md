@@ -4,6 +4,17 @@ A server-side Fabric mod for Minecraft 26.2. On rare occasions, Herobrine appear
 
 Players do not need to install anything: it works with vanilla clients.
 
+## Required mods
+
+Install these on the server alongside this mod. Nothing is needed on players' clients.
+
+| Mod | Version | Notes |
+| --- | --- | --- |
+| [Fabric Loader](https://fabricmc.net/use/server/) | 0.19.0 or later | The mod loader itself |
+| [Fabric API](https://modrinth.com/mod/fabric-api) | Any build for Minecraft 26.2 | Goes in the `mods` folder |
+
+The server must run Minecraft 26.2 on Java 25. No other mods are required.
+
 ## How it works
 
 - Each player sees Herobrine about once per Minecraft week (7 in-game days, 2 hours 20 minutes of play) on average. Sightings are random, not on a schedule.
